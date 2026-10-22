@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stockmantra
+  annotations:
+    # The SPA uses relative /api/... URLs; nginx inside the frontend pod
+    # already proxies those to the api Service. So the Ingress just points
+    # all paths at the frontend Service and lets the pod-level nginx fan
+    # out from there.
+    #
+    # The alternative - send /api to api Service directly from Ingress -
+    # also works, but then the pod-level proxy becomes dead code. Keeping
+    # the Ingress rules simple here.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: stockmantra.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

@@ -1,0 +1,63 @@
+# Production-like stack: Postgres + API (scheduler-free) + frontend (nginx).
+# Mirrors the K8s topology so Compose and the K8s manifests exercise the same
+# wiring. For the old hot-reload+SQLite setup, see docker-compose.dev.yml.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: stockmantra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockmantra_dev_pw}
+      POSTGRES_DB: stockmantra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockmantra -d stockmantra"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Runs Alembic migrations and exits. Backend waits on it before starting
+  # (service_completed_successfully condition below).
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      STOCKS_DATABASE_URL: postgresql+psycopg://stockmantra:${POSTGRES_PASSWORD:-stockmantra_dev_pw}@postgres:5432/stockmantra
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    environment:
+      STOCKS_DATABASE_URL: postgresql+psycopg://stockmantra:${POSTGRES_PASSWORD:-stockmantra_dev_pw}@postgres:5432/stockmantra
+      # Keep APScheduler alive here so Compose users still get scheduled
+      # refreshes without wiring external cron. In K8s we set this to false
+      # because CronJobs own the scheduled work.
+      STOCKS_SCHEDULER_ENABLED: "true"
+      STOCKS_ANTHROPIC_API_KEY: ${STOCKS_ANTHROPIC_API_KEY:-}
+      STOCKS_GROQ_API_KEY: ${STOCKS_GROQ_API_KEY:-}
+      STOCKS_KIMCHI_API_KEY: ${STOCKS_KIMCHI_API_KEY:-}
+    ports:
+      - "8011:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      API_UPSTREAM: backend:8000
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

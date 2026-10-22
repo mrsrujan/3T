@@ -1,0 +1,41 @@
+# Backend (Python)
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/stocks.db
+backend/stocks.db-wal
+backend/stocks.db-shm
+backend/uvicorn.log
+backend/.env
+*.pyc
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+frontend/vite.log
+frontend/.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+#others
+step-by-step.docx
+
+# Claude Code internal state
+.claude/
+.agents/
+skills-lock.json
+
+# Environment secrets
+.env
+k8s/base/secret.yaml
+k8s/**/secret.yaml
+
+# Root-level node_modules (from ad-hoc scripts)
+/node_modules/
+/package.json
+/package-lock.json

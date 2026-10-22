@@ -1,0 +1,122 @@
+# Scheduled jobs. Each CronJob reuses the backend image and runs
+# `python -m app.cli <subcommand>`. Schedules match the original APScheduler
+# cron triggers (see backend/app/services/scheduler.py).
+#
+# TZ env var tells cron (and the pod's processes) which zone to use.
+# `concurrencyPolicy: Forbid` prevents overlap if a prior run is still
+# chugging through the universe when the next cron ticks.
+
+# ─── shared env snippet (duplicated into each CronJob below) ──────────────────
+# envFrom:
+#   - configMapRef: { name: stockmantra-config }
+# env:
+#   - name: POSTGRES_PASSWORD
+#     valueFrom: { secretKeyRef: { name: stockmantra-secrets, key: POSTGRES_PASSWORD } }
+#   - name: STOCKS_DATABASE_URL
+#     value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: india-refresh
+spec:
+  # 6:00 PM Asia/Kolkata, every day (NSE already excludes non-trading days).
+  schedule: "0 18 * * *"
+  timeZone: Asia/Kolkata
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 21600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cli
+              image: stockmantra-backend:phase2
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "app.cli", "india-refresh"]
+              envFrom:
+                - configMapRef:
+                    name: stockmantra-config
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: { secretKeyRef: { name: stockmantra-secrets, key: POSTGRES_PASSWORD } }
+                - name: STOCKS_DATABASE_URL
+                  value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: "1",  memory: 1Gi }
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: catchup-watchdog
+spec:
+  # Every 30 min. Replaces the in-process watchdog + the main.py sweep;
+  # also marks interrupted refresh_log rows as failed on each run.
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: cli
+              image: stockmantra-backend:phase2
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "app.cli", "catchup"]
+              envFrom:
+                - configMapRef:
+                    name: stockmantra-config
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: { secretKeyRef: { name: stockmantra-secrets, key: POSTGRES_PASSWORD } }
+                - name: STOCKS_DATABASE_URL
+                  value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+              resources:
+                requests: { cpu: 50m,  memory: 128Mi }
+                limits:   { cpu: "1",  memory: 1Gi }
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sector-weekly
+spec:
+  # Sunday 3:15 AM Asia/Kolkata.
+  schedule: "15 3 * * 0"
+  timeZone: Asia/Kolkata
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cli
+              image: stockmantra-backend:phase2
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "app.cli", "sector-weekly"]
+              envFrom:
+                - configMapRef:
+                    name: stockmantra-config
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: { secretKeyRef: { name: stockmantra-secrets, key: POSTGRES_PASSWORD } }
+                - name: STOCKS_DATABASE_URL
+                  value: postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: "1",  memory: 1Gi }

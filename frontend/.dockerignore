@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env.local
+vite.log
+*.local
+# Native Capacitor Android project - irrelevant to the web Docker image, and
+# its .gradle/ lock files conflict with a concurrently-running gradlew build.
+android/

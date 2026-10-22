@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stockmantra-config
+data:
+  # DB connection pieces. The full URL is assembled from these plus the
+  # password Secret inside each pod's env (see api-deployment.yaml).
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: stockmantra
+  POSTGRES_USER: stockmantra
+
+  # API pods never run the in-process scheduler. CronJobs own all scheduled
+  # work; otherwise N replicas race on the same cron moment.
+  STOCKS_SCHEDULER_ENABLED: "false"
+
+  # Non-secret model config.
+  STOCKS_CLAUDE_MODEL: claude-sonnet-4-6
+  STOCKS_GROQ_MODEL: llama-3.3-70b-versatile
+
+  # Nginx upstream for the frontend reverse-proxy.
+  API_UPSTREAM: api:8000
