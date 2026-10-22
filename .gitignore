@@ -23,7 +23,7 @@ Thumbs.db
 .idea/
 
 #others
-step-by-step.docx
+./step-by-step.docx
 
 # Claude Code internal state
 .claude/
