@@ -1,0 +1,38 @@
+# Jenkins service account + the narrowest RBAC that still lets the pipeline
+# roll out new images: patch deployments, watch rollout status, read pod
+# logs/events if a rollout fails. All scoped to the stockmantra namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-deployer
+  namespace: stockmantra
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/status"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-deployer
+  namespace: stockmantra
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+roleRef:
+  kind: Role
+  name: jenkins-deployer
+  apiGroup: rbac.authorization.k8s.io

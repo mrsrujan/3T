@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  replicas: 1
+  # Only one Jenkins controller may own the home directory at a time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      serviceAccountName: jenkins
+      securityContext:
+        # Jenkins talks to the host Docker socket; running as root sidesteps
+        # the host-vs-container docker group gid mismatch on Docker Desktop.
+        runAsUser: 0
+        fsGroup: 0
+      containers:
+        - name: jenkins
+          image: stockmantra-jenkins:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: agent
+              containerPort: 50000
+          env:
+            # Skip the setup wizard's "install suggested plugins" screen —
+            # we baked the plugins into the image via plugins.txt.
+            - name: JAVA_OPTS
+              value: "-Djenkins.install.runSetupWizard=true"
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: "2",  memory: 2Gi }
+      volumes:
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: jenkins-home
+        - name: docker-sock
+          hostPath:
+            # Docker Desktop exposes the host daemon here. Any `docker build`
+            # inside Jenkins ends up as an image in the same daemon that
+            # Docker Desktop's k8s pulls from — no registry needed.
+            path: /var/run/docker.sock
+            type: Socket

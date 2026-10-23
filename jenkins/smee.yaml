@@ -1,0 +1,43 @@
+# Smee.io webhook forwarder. GitHub posts to a public smee.io URL; this pod
+# subscribes to that URL and relays every event to the Jenkins webhook
+# endpoint inside the cluster. One-way, no inbound ports exposed on your
+# machine — the pod opens an outbound SSE connection to smee.io.
+#
+# BEFORE APPLYING:
+#   1. Open https://smee.io/new in a browser — it gives you a URL like
+#      https://smee.io/abc123xyz. Copy it.
+#   2. Replace REPLACE_ME_WITH_YOUR_SMEE_URL below.
+#   3. Same URL goes into GitHub → repo Settings → Webhooks → Add webhook
+#      (Payload URL = the smee URL, Content type = application/json,
+#       Events = Just the push event).
+#
+# The forward target assumes the standard Jenkins GitHub plugin endpoint.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smee-client
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smee-client
+  template:
+    metadata:
+      labels:
+        app: smee-client
+    spec:
+      containers:
+        - name: smee
+          image: node:20-alpine
+          command: ["sh", "-c"]
+          args:
+            - npx --yes smee-client --url "$SMEE_URL" --target "$TARGET"
+          env:
+            - name: SMEE_URL
+              value: "https://smee.io/wgj7UDt3KjStRv0z"
+            - name: TARGET
+              value: "http://jenkins.jenkins.svc.cluster.local:8080/github-webhook/"
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 200m, memory: 128Mi }

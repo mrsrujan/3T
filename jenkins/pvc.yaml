@@ -1,0 +1,12 @@
+# Jenkins home (jobs, build history, plugin state). 5Gi is overkill for a
+# learning setup but cheap on Docker Desktop and avoids resizing later.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-home
+  namespace: jenkins
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
